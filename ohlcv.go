@@ -31,6 +31,7 @@ type Chart struct {
 	priceMax  float64
 	timeStart int64
 	timeEnd   int64
+	config    ChartConfig
 }
 
 var (
@@ -39,7 +40,7 @@ var (
 	closeColor = color.RGBA{255, 0, 0, 255}
 )
 
-func NewChart() *Chart {
+func NewChart(config ChartConfig) *Chart {
 	file, err := os.ReadFile("ohlcv_json.txt")
 	if err != nil {
 		log.Fatal("Failed to load OHLCV data:", err)
@@ -64,6 +65,7 @@ func NewChart() *Chart {
 		priceMax:  max,
 		timeStart: ohlcvData[0].Time,
 		timeEnd:   ohlcvData[len(ohlcvData)-1].Time,
+		config:    config,
 	}
 }
 
@@ -82,6 +84,28 @@ func calculatePriceRange(data []OHLCV) (min, max float64) {
 }
 
 func (c *Chart) Update() error {
+	// Handle mouse wheel zoom
+	_, dy := ebiten.Wheel()
+	if dy != 0 {
+		cx, _ := ebiten.CursorPosition()
+		chartLeft := int(c.config.LeftMargin)
+		chartRight := int(c.config.Width - c.config.RightMargin)
+
+		if cx >= chartLeft && cx <= chartRight {
+			totalBarSpace := c.config.BarWidth + c.config.BarSpacing
+			mouseDataPos := (float64(cx) - c.config.LeftMargin - c.OffsetX) / (totalBarSpace * c.Zoom)
+
+			// Apply zoom
+			newZoom := c.Zoom * math.Pow(1.1, dy)
+			newZoom = math.Max(0.1, math.Min(newZoom, 10.0))
+
+			// Adjust offset to zoom toward mouse position
+			c.OffsetX = (float64(cx) - c.config.LeftMargin) - mouseDataPos*(totalBarSpace*newZoom)
+			c.Zoom = newZoom
+		}
+	}
+
+	// Handle mouse drag panning (unchanged)
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		cx, cy := ebiten.CursorPosition()
 		if c.prevX != 0 || c.prevY != 0 {
@@ -92,40 +116,51 @@ func (c *Chart) Update() error {
 		c.prevX, c.prevY = 0, 0
 	}
 
-	_, dy := ebiten.Wheel()
-	c.Zoom = math.Max(0.1, c.Zoom*(1+dy*0.1))
+	// Constrain offset
+	totalBarsWidth := float64(len(c.Data)) * (c.config.BarWidth + c.config.BarSpacing) * c.Zoom
+	visibleWidth := c.config.Width - c.config.LeftMargin - c.config.RightMargin
+
+	if totalBarsWidth < visibleWidth {
+		c.OffsetX = 0
+	} else {
+		maxOffset := totalBarsWidth - visibleWidth
+		c.OffsetX = math.Max(0, math.Min(c.OffsetX, maxOffset))
+	}
+
 	return nil
 }
 
 func (c *Chart) Draw(screen *ebiten.Image) {
-	barWidth := 2.0
-	spacing := 1.0
+	totalBarSpace := c.config.BarWidth + c.config.BarSpacing
 
 	for i, ohlcv := range c.Data {
-		x := float32(100 + float64(i)*(barWidth+spacing)*c.Zoom + c.OffsetX)
+		// Calculate position with zoom (affects spacing but not bar thickness)
+		x := float32(c.config.LeftMargin + (float64(i)*totalBarSpace*c.Zoom + c.OffsetX))
 
 		// Skip drawing if outside view
-		if x < 50 || x > 950 {
+		if x < float32(c.config.LeftMargin) || x > float32(c.config.Width-c.config.RightMargin) {
 			continue
 		}
 
-		lowY := float32(600 - ((ohlcv.Low - c.priceMin) / (c.priceMax - c.priceMin) * 500))
-		highY := float32(600 - ((ohlcv.High - c.priceMin) / (c.priceMax - c.priceMin) * 500))
+		// Calculate bar dimensions (scale positions but not thickness)
+		barTop := float32(c.config.Height - c.config.BottomMargin - ((ohlcv.High - c.priceMin) / (c.priceMax - c.priceMin) * float64(c.config.Height-c.config.TopMargin-c.config.BottomMargin)))
+		barBottom := float32(c.config.Height - c.config.BottomMargin - ((ohlcv.Low - c.priceMin) / (c.priceMax - c.priceMin) * float64(c.config.Height-c.config.TopMargin-c.config.BottomMargin)))
 
-		// Draw OHLC bar
+		// Draw the actual bar (constant thickness regardless of zoom)
 		vector.StrokeLine(
 			screen,
-			x, lowY,
-			x, highY,
-			1.0,
+			x, barTop,
+			x, barBottom,
+			float32(c.config.BarWidth), // Constant width - no zoom multiplier
 			barColor,
 			false,
 		)
 
-		// Draw open/close ticks
-		openY := float32(600 - ((ohlcv.Open - c.priceMin) / (c.priceMax - c.priceMin) * 500))
-		closeY := float32(600 - ((ohlcv.Close - c.priceMin) / (c.priceMax - c.priceMin) * 500))
+		// Draw open/close ticks (also constant thickness)
+		openY := float32(c.config.Height - c.config.BottomMargin - ((ohlcv.Open - c.priceMin) / (c.priceMax - c.priceMin) * float64(c.config.Height-c.config.TopMargin-c.config.BottomMargin)))
+		closeY := float32(c.config.Height - c.config.BottomMargin - ((ohlcv.Close - c.priceMin) / (c.priceMax - c.priceMin) * float64(c.config.Height-c.config.TopMargin-c.config.BottomMargin)))
 
+		// Constant tick width regardless of zoom
 		vector.StrokeLine(
 			screen,
 			x-2, openY,

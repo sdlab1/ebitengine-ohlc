@@ -6,10 +6,14 @@ import (
 
 type ChartConfig struct {
 	// Colors
-	BackgroundColor    color.RGBA
-	AxisColor          color.RGBA
-	GridColor          color.RGBA
-	LabelColor         color.RGBA
+	BackgroundColor color.RGBA
+	AxisColor       color.RGBA
+	GridColor       color.RGBA
+	LabelColor      color.RGBA
+	// Grid colors
+	PrimaryGridColor   color.RGBA // Vertical grid
+	SecondaryGridColor color.RGBA // Horizontal grid
+
 	CrosshairColor     color.RGBA
 	CrosshairTextColor color.RGBA
 	CrosshairBgColor   color.RGBA
@@ -26,6 +30,10 @@ type ChartConfig struct {
 	MinLabelSpacing float64 // Multiple of text height
 	MinPriceLabels  int
 
+	// Bar configuration
+	BarWidth   float64
+	BarSpacing float64 // New spacing between bars
+
 	// Appearance
 	AxisWidth float32
 	GridWidth float32
@@ -36,16 +44,19 @@ var DefaultConfig = ChartConfig{
 	AxisColor:          color.RGBA{R: 100, G: 100, B: 100, A: 255},
 	GridColor:          color.RGBA{R: 0, G: 0, B: 0, A: 255},       // Pure black
 	LabelColor:         color.RGBA{R: 255, G: 255, B: 255, A: 255}, // Pure white
+	PrimaryGridColor:   color.RGBA{R: 30, G: 30, B: 50, A: 150},
+	SecondaryGridColor: color.RGBA{R: 50, G: 50, B: 70, A: 100},
 	CrosshairColor:     color.RGBA{R: 150, G: 150, B: 150, A: 100},
 	CrosshairTextColor: color.RGBA{R: 200, G: 200, B: 200, A: 255},
 	CrosshairBgColor:   color.RGBA{R: 40, G: 40, B: 60, A: 200},
-
-	Width:        1000,
-	Height:       700,
-	LeftMargin:   80,
-	RightMargin:  50,
-	TopMargin:    30,
-	BottomMargin: 50,
+	BarWidth:           1.0,
+	BarSpacing:         2.0, // Space between bars
+	Width:              1000,
+	Height:             700,
+	LeftMargin:         80,
+	RightMargin:        50,
+	TopMargin:          30,
+	BottomMargin:       50,
 
 	MinLabelSpacing: 4, // 4x text height
 	MinPriceLabels:  5,

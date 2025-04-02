@@ -16,10 +16,12 @@ func main() {
 	ebiten.SetWindowSize(1000, 700)
 	ebiten.SetWindowTitle("OHLC Chart Viewer")
 
+	config := DefaultConfig // Get the default config
+
 	game := &Game{
-		chart:       NewChart(),
-		axes:        NewAxes(DefaultConfig),
-		interaction: NewInteraction(DefaultConfig),
+		chart:       NewChart(config),
+		axes:        NewAxes(config),
+		interaction: NewInteraction(config),
 	}
 
 	if err := ebiten.RunGame(game); err != nil {
