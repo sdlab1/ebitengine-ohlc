@@ -14,6 +14,11 @@ type ChartConfig struct {
 	PrimaryGridColor   color.RGBA // Vertical grid
 	SecondaryGridColor color.RGBA // Horizontal grid
 
+	// Bar colors
+	BarColor   color.RGBA
+	OpenColor  color.RGBA
+	CloseColor color.RGBA
+
 	CrosshairColor     color.RGBA
 	CrosshairTextColor color.RGBA
 	CrosshairBgColor   color.RGBA
@@ -46,11 +51,14 @@ var DefaultConfig = ChartConfig{
 	LabelColor:         color.RGBA{R: 255, G: 255, B: 255, A: 255}, // Pure white
 	PrimaryGridColor:   color.RGBA{R: 30, G: 30, B: 50, A: 150},
 	SecondaryGridColor: color.RGBA{R: 50, G: 50, B: 70, A: 100},
+	BarColor:           color.RGBA{R: 255, G: 255, B: 255, A: 255},
+	OpenColor:          color.RGBA{R: 255, G: 255, B: 255, A: 255},
+	CloseColor:         color.RGBA{R: 255, G: 255, B: 255, A: 255},
 	CrosshairColor:     color.RGBA{R: 150, G: 150, B: 150, A: 100},
 	CrosshairTextColor: color.RGBA{R: 200, G: 200, B: 200, A: 255},
 	CrosshairBgColor:   color.RGBA{R: 40, G: 40, B: 60, A: 200},
 	BarWidth:           1.0,
-	BarSpacing:         2.0, // Space between bars
+	BarSpacing:         5.0, // Space between bars
 	Width:              1000,
 	Height:             700,
 	LeftMargin:         80,

@@ -134,39 +134,35 @@ func (c *Chart) Draw(screen *ebiten.Image) {
 	totalBarSpace := c.config.BarWidth + c.config.BarSpacing
 
 	for i, ohlcv := range c.Data {
-		// Calculate position with zoom (affects spacing but not bar thickness)
 		x := float32(c.config.LeftMargin + (float64(i)*totalBarSpace*c.Zoom + c.OffsetX))
 
-		// Skip drawing if outside view
 		if x < float32(c.config.LeftMargin) || x > float32(c.config.Width-c.config.RightMargin) {
 			continue
 		}
 
-		// Calculate bar dimensions (scale positions but not thickness)
 		barTop := float32(c.config.Height - c.config.BottomMargin - ((ohlcv.High - c.priceMin) / (c.priceMax - c.priceMin) * float64(c.config.Height-c.config.TopMargin-c.config.BottomMargin)))
 		barBottom := float32(c.config.Height - c.config.BottomMargin - ((ohlcv.Low - c.priceMin) / (c.priceMax - c.priceMin) * float64(c.config.Height-c.config.TopMargin-c.config.BottomMargin)))
 
-		// Draw the actual bar (constant thickness regardless of zoom)
+		// Draw bar using config color
 		vector.StrokeLine(
 			screen,
 			x, barTop,
 			x, barBottom,
-			float32(c.config.BarWidth), // Constant width - no zoom multiplier
-			barColor,
+			float32(c.config.BarWidth),
+			c.config.BarColor,
 			false,
 		)
 
-		// Draw open/close ticks (also constant thickness)
 		openY := float32(c.config.Height - c.config.BottomMargin - ((ohlcv.Open - c.priceMin) / (c.priceMax - c.priceMin) * float64(c.config.Height-c.config.TopMargin-c.config.BottomMargin)))
 		closeY := float32(c.config.Height - c.config.BottomMargin - ((ohlcv.Close - c.priceMin) / (c.priceMax - c.priceMin) * float64(c.config.Height-c.config.TopMargin-c.config.BottomMargin)))
 
-		// Constant tick width regardless of zoom
+		// Draw ticks using config colors
 		vector.StrokeLine(
 			screen,
 			x-2, openY,
 			x+2, openY,
 			1.0,
-			openColor,
+			c.config.OpenColor,
 			false,
 		)
 
@@ -175,7 +171,7 @@ func (c *Chart) Draw(screen *ebiten.Image) {
 			x-2, closeY,
 			x+2, closeY,
 			1.0,
-			closeColor,
+			c.config.CloseColor,
 			false,
 		)
 	}
