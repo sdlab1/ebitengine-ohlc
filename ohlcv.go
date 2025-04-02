@@ -1,16 +1,15 @@
-// ohlcv.go
 package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"math"
+	"os"
 
 	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 type OHLCV struct {
@@ -28,9 +27,17 @@ type Chart struct {
 	prevY   int
 }
 
+// Define common colors
+var (
+	backgroundColor = color.RGBA{20, 20, 40, 255}
+	barColor        = color.White
+	openColor       = color.RGBA{0, 255, 0, 255} // Green
+	closeColor      = color.RGBA{255, 0, 0, 255} // Red
+	axisColor       = color.RGBA{255, 0, 0, 255} // Red for axes
+)
+
 func NewChart() *Chart {
-	// Load data from JSON file
-	file, err := ioutil.ReadFile("ohlcv_json.txt")
+	file, err := os.ReadFile("ohlcv_json.txt")
 	if err != nil {
 		log.Fatal("Failed to load OHLCV data:", err)
 	}
@@ -40,7 +47,6 @@ func NewChart() *Chart {
 		log.Fatal("Failed to parse OHLCV data:", err)
 	}
 
-	// Use first 100 entries
 	if len(ohlcvData) > 100 {
 		ohlcvData = ohlcvData[:100]
 	}
@@ -52,7 +58,6 @@ func NewChart() *Chart {
 }
 
 func (c *Chart) Update() error {
-	// Pan with mouse drag
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		cx, cy := ebiten.CursorPosition()
 		if c.prevX != 0 || c.prevY != 0 {
@@ -63,66 +68,59 @@ func (c *Chart) Update() error {
 		c.prevX, c.prevY = 0, 0
 	}
 
-	// Zoom with mouse wheel
 	_, dy := ebiten.Wheel()
-	c.Zoom = math.Max(0.1, c.Zoom*(1+dy*0.1)) // Limit minimum zoom
+	c.Zoom = math.Max(0.1, c.Zoom*(1+dy*0.1))
 	return nil
 }
 
 func (c *Chart) Draw(screen *ebiten.Image) {
-	screen.Fill(color.RGBA{20, 20, 40, 255}) // Dark background
+	screen.Fill(backgroundColor)
 
-	barWidth := 2.0 // Thin bars (adjust as needed)
-	spacing := 1.0  // Minimal spacing between bars
+	// Draw axes for reference
+	vector.StrokeLine(screen, 50, 50, 50, 550, 1, axisColor, false)   // Y-axis
+	vector.StrokeLine(screen, 50, 550, 750, 550, 1, axisColor, false) // X-axis
+
+	barWidth := 2.0
+	spacing := 1.0
+	yScale := 0.0001 // Adjust based on your price range
 
 	for i, ohlcv := range c.Data {
-		// Calculate x-position with zoom/pan
-		x := float64(i)*(barWidth+spacing)*c.Zoom + c.OffsetX
+		x := float32(50 + float64(i)*(barWidth+spacing)*c.Zoom + c.OffsetX)
 
-		// Normalize prices to fit screen (adjust 600 to your window height)
-		priceScale := 600.0 / (getMaxPrice(c.Data) - getMinPrice(c.Data))
+		// Convert prices to screen coordinates
+		lowY := float32(550 - (ohlcv.Low*yScale - 700)) // Adjusted for better visibility
+		highY := float32(550 - (ohlcv.High*yScale - 700))
 
-		// Draw the OHLC bar (thin line from Low to High)
-		ebitenutil.DrawLine(
+		// Draw main OHLC bar
+		vector.StrokeLine(
 			screen,
-			x, 600-ohlcv.Low*priceScale,
-			x, 600-ohlcv.High*priceScale,
-			color.White,
+			x, lowY,
+			x, highY,
+			1.0,
+			barColor,
+			false,
 		)
 
-		// Optional: Mark open/close with tiny ticks
-		ebitenutil.DrawLine(
+		// Mark open price
+		openY := float32(550 - (ohlcv.Open*yScale - 700))
+		vector.StrokeLine(
 			screen,
-			x-1, 600-ohlcv.Open*priceScale,
-			x+1, 600-ohlcv.Open*priceScale,
-			color.RGBA{0, 255, 0, 255}, // Green for open
+			x-2, openY,
+			x+2, openY,
+			1.0,
+			openColor,
+			false,
 		)
-		ebitenutil.DrawLine(
+
+		// Mark close price
+		closeY := float32(550 - (ohlcv.Close*yScale - 700))
+		vector.StrokeLine(
 			screen,
-			x-1, 600-ohlcv.Close*priceScale,
-			x+1, 600-ohlcv.Close*priceScale,
-			color.RGBA{255, 0, 0, 255}, // Red for close
+			x-2, closeY,
+			x+2, closeY,
+			1.0,
+			closeColor,
+			false,
 		)
 	}
-}
-
-// Helper functions
-func getMaxPrice(data []OHLCV) float64 {
-	max := data[0].High
-	for _, d := range data {
-		if d.High > max {
-			max = d.High
-		}
-	}
-	return max
-}
-
-func getMinPrice(data []OHLCV) float64 {
-	min := data[0].Low
-	for _, d := range data {
-		if d.Low < min {
-			min = d.Low
-		}
-	}
-	return min
 }
