@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image/color"
 	"math"
 	"time"
 
@@ -17,9 +16,10 @@ type Axes struct {
 	fontFace    font.Face
 	lastMonth   int
 	labelHeight int
+	config      ChartConfig
 }
 
-func NewAxes() *Axes {
+func NewAxes(config ChartConfig) *Axes {
 	face := basicfont.Face7x13
 	metrics := face.Metrics()
 	textHeight := metrics.Ascent.Ceil() + metrics.Descent.Ceil()
@@ -27,6 +27,7 @@ func NewAxes() *Axes {
 		fontFace:    face,
 		lastMonth:   -1,
 		labelHeight: textHeight,
+		config:      config,
 	}
 }
 
@@ -34,86 +35,147 @@ func (a *Axes) Update(chart *Chart) {
 	a.lastMonth = -1
 }
 
-func calculateStep(rangeSize float64) float64 {
-	exponent := math.Floor(math.Log10(rangeSize))
-	power := math.Pow(10, exponent)
-	return power * 2
+func formatPriceLabel(price float64) string {
+	switch {
+	case price >= 1000000:
+		return fmt.Sprintf("%.1fM", price/1000000)
+	case price >= 1000:
+		return fmt.Sprintf("%.0fK", price/1000)
+	default:
+		return fmt.Sprintf("%.0f", price)
+	}
+}
+
+func calculateNiceStep(rangeSize float64, availableSpace float64, minSpacing float64) float64 {
+	// Calculate maximum possible labels
+	maxPossibleLabels := math.Floor(availableSpace / minSpacing)
+	if maxPossibleLabels < 2 {
+		maxPossibleLabels = 2
+	}
+
+	// Initial step estimate
+	rawStep := rangeSize / maxPossibleLabels
+
+	// Round to nice human-readable number
+	magnitude := math.Pow(10, math.Floor(math.Log10(rawStep)))
+	step := math.Ceil(rawStep/magnitude) * magnitude
+
+	// Ensure step isn't too small
+	minStep := minSpacing * (rangeSize / availableSpace)
+	if step < minStep {
+		step = minStep
+	}
+
+	return step
 }
 
 func (a *Axes) Draw(screen *ebiten.Image, chart *Chart) {
 	// Draw background
-	vector.DrawFilledRect(screen, 0, 0, 1000, 700, color.RGBA{40, 40, 60, 255}, false)
+	vector.DrawFilledRect(
+		screen,
+		0, 0,
+		float32(a.config.Width), float32(a.config.Height),
+		a.config.BackgroundColor,
+		false,
+	)
 
-	// Chart dimensions
-	leftMargin := 80.0
-	rightMargin := 50.0
-	bottomMargin := 50.0
-	topMargin := 30.0
-	chartHeight := 600.0 - topMargin - bottomMargin
-
-	// Colors
-	axisColor := color.RGBA{100, 100, 100, 255}
-	gridColor := color.Black
-	labelColor := color.White
+	// Calculate chart dimensions
+	chartWidth := float64(a.config.Width - a.config.LeftMargin - a.config.RightMargin)
+	chartHeight := float64(a.config.Height - a.config.TopMargin - a.config.BottomMargin)
 
 	// Draw Y axis
-	vector.StrokeLine(screen, float32(leftMargin), float32(topMargin), float32(leftMargin), float32(600-bottomMargin), 1, axisColor, false)
+	vector.StrokeLine(
+		screen,
+		float32(a.config.LeftMargin), float32(a.config.TopMargin),
+		float32(a.config.LeftMargin), float32(a.config.Height-a.config.BottomMargin),
+		a.config.AxisWidth,
+		a.config.AxisColor,
+		false,
+	)
 
-	// Calculate price steps with proper spacing
+	// Calculate price steps with guaranteed spacing
 	priceRange := chart.priceMax - chart.priceMin
-	minLabels := 5 // Minimum number of price labels we want
-	priceStep := calculateStep(priceRange / float64(minLabels))
+	minSpacing := float64(a.labelHeight) * a.config.MinLabelSpacing
 
-	// Ensure we have enough labels with good spacing
-	pixelsPerUnit := chartHeight / priceRange
-	minSpacing := float64(a.labelHeight * 4)
-	for (priceStep * pixelsPerUnit) < minSpacing {
-		priceStep *= 2
-	}
+	priceStep := calculateNiceStep(priceRange, chartHeight, minSpacing)
 
-	// Draw all price labels (no skipping)
+	// Draw price labels and grid lines
+	prevY := math.Inf(-1)
 	for price := math.Ceil(chart.priceMin/priceStep) * priceStep; price <= chart.priceMax; price += priceStep {
-		y := 600 - bottomMargin - ((price - chart.priceMin) / priceRange * chartHeight)
+		y := a.config.Height - a.config.BottomMargin - ((price - chart.priceMin) / priceRange * chartHeight)
 
-		// Draw grid line
-		vector.StrokeLine(screen, float32(leftMargin), float32(y), float32(950-rightMargin), float32(y), 1.2, gridColor, false)
+		// Ensure minimum spacing
+		if prevY == math.Inf(-1) || (prevY-y) >= minSpacing {
+			// Draw grid line
+			vector.StrokeLine(
+				screen,
+				float32(a.config.LeftMargin), float32(y),
+				float32(a.config.Width-a.config.RightMargin), float32(y),
+				a.config.GridWidth,
+				a.config.GridColor,
+				false,
+			)
 
-		// Format price label
-		priceStr := fmt.Sprintf("%.0f", price)
-		if price >= 1000000 {
-			priceStr = fmt.Sprintf("%.1fM", price/1000000)
-		} else if price >= 1000 {
-			priceStr = fmt.Sprintf("%.0fK", price/1000)
+			// Format price label
+			priceStr := formatPriceLabel(price)
+
+			// Measure and draw text
+			textWidth := font.MeasureString(a.fontFace, priceStr).Ceil()
+			text.Draw(
+				screen,
+				priceStr,
+				a.fontFace,
+				int(a.config.LeftMargin)-60-textWidth/2,
+				int(y)+a.labelHeight/2,
+				a.config.LabelColor,
+			)
+			prevY = y
 		}
-
-		// Measure and draw text
-		textWidth := font.MeasureString(a.fontFace, priceStr).Ceil()
-		text.Draw(screen, priceStr, a.fontFace, int(leftMargin)-60-textWidth/2, int(y)+a.labelHeight/2, labelColor)
 	}
 
 	// Draw X axis and vertical grid lines
-	vector.StrokeLine(screen, float32(leftMargin), float32(600-bottomMargin), float32(950-rightMargin), float32(600-bottomMargin), 1, axisColor, false)
+	vector.StrokeLine(
+		screen,
+		float32(a.config.LeftMargin), float32(a.config.Height-a.config.BottomMargin),
+		float32(a.config.Width-a.config.RightMargin), float32(a.config.Height-a.config.BottomMargin),
+		a.config.AxisWidth,
+		a.config.AxisColor,
+		false,
+	)
 
 	timeRange := chart.timeEnd - chart.timeStart
 	timeStep := timeRange / 10
 
 	for t := chart.timeStart; t <= chart.timeEnd; t += timeStep {
-		x := leftMargin + (float64(t-chart.timeStart)/float64(timeRange))*(950-leftMargin-rightMargin)
-		vector.StrokeLine(screen, float32(x), float32(topMargin), float32(x), float32(600-bottomMargin), 1.2, gridColor, false)
+		x := a.config.LeftMargin + (float64(t-chart.timeStart) / float64(timeRange) * chartWidth)
+		vector.StrokeLine(
+			screen,
+			float32(x), float32(a.config.TopMargin),
+			float32(x), float32(a.config.Height-a.config.BottomMargin),
+			a.config.GridWidth,
+			a.config.GridColor,
+			false,
+		)
 
 		tm := time.Unix(t/1000, 0)
 		currentMonth := int(tm.Month())
 
 		var timeText string
 		if currentMonth != a.lastMonth {
-			timeText = tm.Format("Jan 2")
+			timeText = tm.Format(TimeFormat.MonthlyFormat)
 			a.lastMonth = currentMonth
 		} else {
-			timeText = tm.Format("2")
+			timeText = tm.Format(TimeFormat.DailyFormat)
 		}
 
-		// Measure text width properly
 		textWidth := font.MeasureString(a.fontFace, timeText).Ceil()
-		text.Draw(screen, timeText, a.fontFace, int(x)-textWidth/2, 620, labelColor)
+		text.Draw(
+			screen,
+			timeText,
+			a.fontFace,
+			int(x)-textWidth/2,
+			int(a.config.Height)-20,
+			a.config.LabelColor,
+		)
 	}
 }

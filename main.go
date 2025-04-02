@@ -7,8 +7,9 @@ import (
 )
 
 type Game struct {
-	chart *Chart
-	axes  *Axes
+	chart       *Chart
+	axes        *Axes
+	interaction *Interaction
 }
 
 func main() {
@@ -16,8 +17,9 @@ func main() {
 	ebiten.SetWindowTitle("OHLC Chart Viewer")
 
 	game := &Game{
-		chart: NewChart(),
-		axes:  NewAxes(),
+		chart:       NewChart(),
+		axes:        NewAxes(DefaultConfig),
+		interaction: NewInteraction(DefaultConfig),
 	}
 
 	if err := ebiten.RunGame(game); err != nil {
@@ -30,12 +32,14 @@ func (g *Game) Update() error {
 		return err
 	}
 	g.axes.Update(g.chart)
+	g.interaction.Update(g.chart)
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.axes.Draw(screen, g.chart) // Pass the chart reference
+	g.axes.Draw(screen, g.chart)
 	g.chart.Draw(screen)
+	g.interaction.Draw(screen, g.chart)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
