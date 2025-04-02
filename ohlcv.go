@@ -6,8 +6,6 @@ import (
 	"math"
 	"os"
 
-	"image/color"
-
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
@@ -33,12 +31,6 @@ type Chart struct {
 	timeEnd   int64
 	config    ChartConfig
 }
-
-var (
-	barColor   = color.White
-	openColor  = color.RGBA{0, 255, 0, 255}
-	closeColor = color.RGBA{255, 0, 0, 255}
-)
 
 func NewChart(config ChartConfig) *Chart {
 	file, err := os.ReadFile("ohlcv_json.txt")
