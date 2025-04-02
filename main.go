@@ -1,22 +1,22 @@
+// main.go
 package main
 
 import (
-	"image/color"
 	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 )
 
-type Game struct{}
+type Game struct {
+	chart *Chart
+}
 
 func (g *Game) Update() error {
-	return nil
+	return g.chart.Update()
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	// Draw a test line (verify rendering works)
-	ebitenutil.DrawLine(screen, 100, 100, 300, 300, color.White)
+	g.chart.Draw(screen)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -25,8 +25,13 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 func main() {
 	ebiten.SetWindowSize(800, 600)
-	ebiten.SetWindowTitle("OHLC Chart Test")
-	if err := ebiten.RunGame(&Game{}); err != nil {
+	ebiten.SetWindowTitle("OHLCV Chart")
+
+	game := &Game{
+		chart: NewChart(),
+	}
+
+	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
 }
