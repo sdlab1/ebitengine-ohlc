@@ -1,4 +1,4 @@
-module github.com/yourusername/ebitengine-ohlc
+module github.com/sdlab1/n-ohlcv
 
 go 1.24.2
 
