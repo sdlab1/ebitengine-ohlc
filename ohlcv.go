@@ -13,27 +13,30 @@ import (
 )
 
 type OHLCV struct {
-	Open  float64 `json:"open"`
-	High  float64 `json:"high"`
-	Low   float64 `json:"low"`
-	Close float64 `json:"close"`
+	Open   float64 `json:"open"`
+	High   float64 `json:"high"`
+	Low    float64 `json:"low"`
+	Close  float64 `json:"close"`
+	Time   int64   `json:"time"`
+	Volume float64 `json:"volume"`
 }
 
 type Chart struct {
-	Data    []OHLCV
-	OffsetX float64
-	Zoom    float64
-	prevX   int
-	prevY   int
+	Data      []OHLCV
+	OffsetX   float64
+	Zoom      float64
+	prevX     int
+	prevY     int
+	priceMin  float64
+	priceMax  float64
+	timeStart int64
+	timeEnd   int64
 }
 
-// Define common colors
 var (
-	backgroundColor = color.RGBA{20, 20, 40, 255}
-	barColor        = color.White
-	openColor       = color.RGBA{0, 255, 0, 255} // Green
-	closeColor      = color.RGBA{255, 0, 0, 255} // Red
-	axisColor       = color.RGBA{255, 0, 0, 255} // Red for axes
+	barColor   = color.White
+	openColor  = color.RGBA{0, 255, 0, 255}
+	closeColor = color.RGBA{255, 0, 0, 255}
 )
 
 func NewChart() *Chart {
@@ -47,14 +50,35 @@ func NewChart() *Chart {
 		log.Fatal("Failed to parse OHLCV data:", err)
 	}
 
-	if len(ohlcvData) > 100 {
-		ohlcvData = ohlcvData[:100]
+	if len(ohlcvData) == 0 {
+		log.Fatal("No OHLCV data loaded")
 	}
 
+	// Calculate price range
+	min, max := calculatePriceRange(ohlcvData)
+
 	return &Chart{
-		Data: ohlcvData,
-		Zoom: 1.0,
+		Data:      ohlcvData,
+		Zoom:      1.0,
+		priceMin:  min,
+		priceMax:  max,
+		timeStart: ohlcvData[0].Time,
+		timeEnd:   ohlcvData[len(ohlcvData)-1].Time,
 	}
+}
+
+func calculatePriceRange(data []OHLCV) (min, max float64) {
+	min = data[0].Low
+	max = data[0].High
+	for _, d := range data {
+		if d.Low < min {
+			min = d.Low
+		}
+		if d.High > max {
+			max = d.High
+		}
+	}
+	return min, max
 }
 
 func (c *Chart) Update() error {
@@ -74,24 +98,21 @@ func (c *Chart) Update() error {
 }
 
 func (c *Chart) Draw(screen *ebiten.Image) {
-	screen.Fill(backgroundColor)
-
-	// Draw axes for reference
-	vector.StrokeLine(screen, 50, 50, 50, 550, 1, axisColor, false)   // Y-axis
-	vector.StrokeLine(screen, 50, 550, 750, 550, 1, axisColor, false) // X-axis
-
 	barWidth := 2.0
 	spacing := 1.0
-	yScale := 0.0001 // Adjust based on your price range
 
 	for i, ohlcv := range c.Data {
-		x := float32(50 + float64(i)*(barWidth+spacing)*c.Zoom + c.OffsetX)
+		x := float32(100 + float64(i)*(barWidth+spacing)*c.Zoom + c.OffsetX)
 
-		// Convert prices to screen coordinates
-		lowY := float32(550 - (ohlcv.Low*yScale - 700)) // Adjusted for better visibility
-		highY := float32(550 - (ohlcv.High*yScale - 700))
+		// Skip drawing if outside view
+		if x < 50 || x > 950 {
+			continue
+		}
 
-		// Draw main OHLC bar
+		lowY := float32(600 - ((ohlcv.Low - c.priceMin) / (c.priceMax - c.priceMin) * 500))
+		highY := float32(600 - ((ohlcv.High - c.priceMin) / (c.priceMax - c.priceMin) * 500))
+
+		// Draw OHLC bar
 		vector.StrokeLine(
 			screen,
 			x, lowY,
@@ -101,8 +122,10 @@ func (c *Chart) Draw(screen *ebiten.Image) {
 			false,
 		)
 
-		// Mark open price
-		openY := float32(550 - (ohlcv.Open*yScale - 700))
+		// Draw open/close ticks
+		openY := float32(600 - ((ohlcv.Open - c.priceMin) / (c.priceMax - c.priceMin) * 500))
+		closeY := float32(600 - ((ohlcv.Close - c.priceMin) / (c.priceMax - c.priceMin) * 500))
+
 		vector.StrokeLine(
 			screen,
 			x-2, openY,
@@ -112,8 +135,6 @@ func (c *Chart) Draw(screen *ebiten.Image) {
 			false,
 		)
 
-		// Mark close price
-		closeY := float32(550 - (ohlcv.Close*yScale - 700))
 		vector.StrokeLine(
 			screen,
 			x-2, closeY,
