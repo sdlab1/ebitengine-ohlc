@@ -9,89 +9,111 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 )
 
 type Axes struct {
-	fontFace *basicfont.Face
+	fontFace    font.Face
+	lastMonth   int
+	labelHeight int
 }
 
 func NewAxes() *Axes {
+	face := basicfont.Face7x13
+	metrics := face.Metrics()
+	textHeight := metrics.Ascent.Ceil() + metrics.Descent.Ceil()
 	return &Axes{
-		fontFace: basicfont.Face7x13,
+		fontFace:    face,
+		lastMonth:   -1,
+		labelHeight: textHeight,
 	}
 }
 
 func (a *Axes) Update(chart *Chart) {
-	// No need to store anything as we'll use chart reference directly
+	a.lastMonth = -1
 }
 
 func calculateStep(rangeSize float64) float64 {
 	exponent := math.Floor(math.Log10(rangeSize))
 	power := math.Pow(10, exponent)
-	frac := rangeSize / power
-
-	var step float64
-	switch {
-	case frac > 5:
-		step = power
-	case frac > 2:
-		step = power / 2
-	default:
-		step = power / 5
-	}
-
-	return step
-}
-
-func calculateTimeStep(timeRange int64) int64 {
-	days := timeRange / (24 * 3600 * 1000)
-
-	switch {
-	case days > 365:
-		return 30 * 24 * 3600 * 1000 // Monthly
-	case days > 30:
-		return 7 * 24 * 3600 * 1000 // Weekly
-	case days > 7:
-		return 24 * 3600 * 1000 // Daily
-	default:
-		return 3600 * 1000 // Hourly
-	}
+	return power * 2
 }
 
 func (a *Axes) Draw(screen *ebiten.Image, chart *Chart) {
 	// Draw background
-	vector.DrawFilledRect(screen, 0, 0, 1000, 700, color.RGBA{20, 20, 40, 255}, false)
+	vector.DrawFilledRect(screen, 0, 0, 1000, 700, color.RGBA{40, 40, 60, 255}, false)
 
-	// Draw Y axis (price)
-	vector.StrokeLine(screen, 100, 50, 100, 600, 1, color.White, false)
+	// Chart dimensions
+	leftMargin := 80.0
+	rightMargin := 50.0
+	bottomMargin := 50.0
+	topMargin := 30.0
+	chartHeight := 600.0 - topMargin - bottomMargin
 
-	// Draw X axis (time)
-	vector.StrokeLine(screen, 100, 600, 950, 600, 1, color.White, false)
+	// Colors
+	axisColor := color.RGBA{100, 100, 100, 255}
+	gridColor := color.Black
+	labelColor := color.White
 
-	// Calculate price steps
+	// Draw Y axis
+	vector.StrokeLine(screen, float32(leftMargin), float32(topMargin), float32(leftMargin), float32(600-bottomMargin), 1, axisColor, false)
+
+	// Calculate price steps with proper spacing
 	priceRange := chart.priceMax - chart.priceMin
-	priceStep := calculateStep(priceRange / 10)
+	minLabels := 5 // Minimum number of price labels we want
+	priceStep := calculateStep(priceRange / float64(minLabels))
 
-	// Draw price ticks and labels
-	for price := math.Ceil(chart.priceMin/priceStep) * priceStep; price <= chart.priceMax; price += priceStep {
-		y := 600 - ((price - chart.priceMin) / (chart.priceMax - chart.priceMin) * 500)
-		vector.StrokeLine(screen, 95, float32(y), 100, float32(y), 1, color.White, false)
-		text.Draw(screen, fmt.Sprintf("%.2f", price), a.fontFace, 50, int(y+6), color.White)
+	// Ensure we have enough labels with good spacing
+	pixelsPerUnit := chartHeight / priceRange
+	minSpacing := float64(a.labelHeight * 4)
+	for (priceStep * pixelsPerUnit) < minSpacing {
+		priceStep *= 2
 	}
 
-	// Calculate time steps
-	timeStep := calculateTimeStep(chart.timeEnd - chart.timeStart)
+	// Draw all price labels (no skipping)
+	for price := math.Ceil(chart.priceMin/priceStep) * priceStep; price <= chart.priceMax; price += priceStep {
+		y := 600 - bottomMargin - ((price - chart.priceMin) / priceRange * chartHeight)
 
-	// Draw time ticks and labels
-	for t := chart.timeStart; t <= chart.timeEnd; t += timeStep {
-		x := 100 + ((float64(t-chart.timeStart) / float64(chart.timeEnd-chart.timeStart)) * 850)
-		vector.StrokeLine(screen, float32(x), 600, float32(x), 605, 1, color.White, false)
+		// Draw grid line
+		vector.StrokeLine(screen, float32(leftMargin), float32(y), float32(950-rightMargin), float32(y), 1.2, gridColor, false)
 
-		timeText := time.Unix(t/1000, 0).Format("2006-01-02")
-		if timeStep < 24*3600*1000 {
-			timeText = time.Unix(t/1000, 0).Format("01-02 15:04")
+		// Format price label
+		priceStr := fmt.Sprintf("%.0f", price)
+		if price >= 1000000 {
+			priceStr = fmt.Sprintf("%.1fM", price/1000000)
+		} else if price >= 1000 {
+			priceStr = fmt.Sprintf("%.0fK", price/1000)
 		}
-		text.Draw(screen, timeText, a.fontFace, int(x-30), 620, color.White)
+
+		// Measure and draw text
+		textWidth := font.MeasureString(a.fontFace, priceStr).Ceil()
+		text.Draw(screen, priceStr, a.fontFace, int(leftMargin)-60-textWidth/2, int(y)+a.labelHeight/2, labelColor)
+	}
+
+	// Draw X axis and vertical grid lines
+	vector.StrokeLine(screen, float32(leftMargin), float32(600-bottomMargin), float32(950-rightMargin), float32(600-bottomMargin), 1, axisColor, false)
+
+	timeRange := chart.timeEnd - chart.timeStart
+	timeStep := timeRange / 10
+
+	for t := chart.timeStart; t <= chart.timeEnd; t += timeStep {
+		x := leftMargin + (float64(t-chart.timeStart)/float64(timeRange))*(950-leftMargin-rightMargin)
+		vector.StrokeLine(screen, float32(x), float32(topMargin), float32(x), float32(600-bottomMargin), 1.2, gridColor, false)
+
+		tm := time.Unix(t/1000, 0)
+		currentMonth := int(tm.Month())
+
+		var timeText string
+		if currentMonth != a.lastMonth {
+			timeText = tm.Format("Jan 2")
+			a.lastMonth = currentMonth
+		} else {
+			timeText = tm.Format("2")
+		}
+
+		// Measure text width properly
+		textWidth := font.MeasureString(a.fontFace, timeText).Ceil()
+		text.Draw(screen, timeText, a.fontFace, int(x)-textWidth/2, 620, labelColor)
 	}
 }
