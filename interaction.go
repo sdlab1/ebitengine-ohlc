@@ -102,19 +102,6 @@ func (i *Interaction) updateCrosshairPosition(chart *Chart) {
 	}
 }
 
-func clamp(value, min, max int) int {
-	if min > max {
-		min, max = max, min
-	}
-	if value < min {
-		return min
-	}
-	if value > max {
-		return max
-	}
-	return value
-}
-
 func (i *Interaction) updatePriceAndTimeValues(chart *Chart) {
 	chartHeight := chart.config.Height - chart.config.TopMargin - chart.config.BottomMargin
 	priceRange := chart.priceMax - chart.priceMin
