@@ -1,10 +1,7 @@
 package main
 
 import (
-	"encoding/json"
-	"log"
 	"math"
-	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -33,32 +30,23 @@ type Chart struct {
 }
 
 func NewChart(config ChartConfig) *Chart {
-	file, err := os.ReadFile("ohlcv_json.txt")
-	if err != nil {
-		log.Fatal("Failed to load OHLCV data:", err)
-	}
-
-	var ohlcvData []OHLCV
-	if err := json.Unmarshal(file, &ohlcvData); err != nil {
-		log.Fatal("Failed to parse OHLCV data:", err)
-	}
-
-	if len(ohlcvData) == 0 {
-		log.Fatal("No OHLCV data loaded")
-	}
-
-	// Calculate price range
-	min, max := calculatePriceRange(ohlcvData)
-
 	return &Chart{
-		Data:      ohlcvData,
-		Zoom:      1.0,
-		priceMin:  min,
-		priceMax:  max,
-		timeStart: ohlcvData[0].Time,
-		timeEnd:   ohlcvData[len(ohlcvData)-1].Time,
-		config:    config,
+		Zoom:   1.0,
+		config: config,
+		Data:   make([]OHLCV, 0),
 	}
+}
+
+func (c *Chart) UpdateData(newData []OHLCV) {
+	if len(newData) == 0 {
+		return
+	}
+
+	c.Data = newData
+	// Recalculate price range
+	c.priceMin, c.priceMax = calculatePriceRange(c.Data)
+	c.timeStart = c.Data[0].Time
+	c.timeEnd = c.Data[len(c.Data)-1].Time
 }
 
 func calculatePriceRange(data []OHLCV) (min, max float64) {
@@ -97,7 +85,7 @@ func (c *Chart) Update() error {
 		}
 	}
 
-	// Handle mouse drag panning (unchanged)
+	// Handle mouse drag panning
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		cx, cy := ebiten.CursorPosition()
 		if c.prevX != 0 || c.prevY != 0 {

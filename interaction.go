@@ -218,7 +218,8 @@ func (i *Interaction) drawPriceLabel(screen *ebiten.Image) {
 }
 
 func (i *Interaction) drawTimeLabel(screen *ebiten.Image) {
-	timeText := time.Unix(i.mouseTime/1000, 0).Format("2006-01-02 15:04:05")
+	t := time.Unix(i.mouseTime/1000, (i.mouseTime%1000)*int64(time.Millisecond))
+	timeText := t.Format("2006-01-02 15:04:05.000")
 	timeTextWidth := font.MeasureString(i.fontFace, timeText).Ceil()
 	timeTextX := int(math.Max(
 		i.config.LeftMargin,

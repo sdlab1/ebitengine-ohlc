@@ -147,8 +147,8 @@ func (a *Axes) Draw(screen *ebiten.Image, chart *Chart) {
 			false,
 		)
 
-		// Draw time label
-		tm := time.Unix(t/1000, 0)
+		// Draw time label - handle milliseconds
+		tm := time.Unix(t/1000, (t%1000)*int64(time.Millisecond))
 		currentMonth := int(tm.Month())
 
 		var timeText string
