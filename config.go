@@ -19,6 +19,9 @@ type ChartConfig struct {
 	OpenColor  color.RGBA
 	CloseColor color.RGBA
 
+	VolumeUpColor   color.RGBA
+	VolumeDownColor color.RGBA
+
 	CrosshairColor       color.RGBA
 	CrosshairTextColor   color.RGBA
 	CrosshairBgColor     color.RGBA
@@ -38,8 +41,9 @@ type ChartConfig struct {
 	MinPriceLabels  int
 
 	// Bar configuration
-	BarWidth   float64
-	BarSpacing float64 // New spacing between bars
+	BarWidth      float64
+	BarSpacing    float64 // New spacing between bars
+	VolumeSpacing float64
 
 	// Appearance
 	AxisWidth float32
@@ -56,6 +60,8 @@ var DefaultConfig = ChartConfig{
 	BarColor:             color.RGBA{R: 255, G: 255, B: 255, A: 255},
 	OpenColor:            color.RGBA{R: 255, G: 255, B: 255, A: 255},
 	CloseColor:           color.RGBA{R: 255, G: 255, B: 255, A: 255},
+	VolumeUpColor:        color.RGBA{R: 0, G: 100, B: 0, A: 255},
+	VolumeDownColor:      color.RGBA{R: 100, G: 0, B: 0, A: 255},
 	CrosshairColor:       color.RGBA{R: 150, G: 150, B: 150, A: 255},
 	CrosshairTextColor:   color.RGBA{R: 200, G: 200, B: 200, A: 255},
 	CrosshairBgColor:     color.RGBA{R: 30, G: 30, B: 30, A: 255},
@@ -63,12 +69,14 @@ var DefaultConfig = ChartConfig{
 	FrameTimeMABgColor:   color.RGBA{R: 20, G: 20, B: 20, A: 255},
 	BarWidth:             1.0,
 	BarSpacing:           5.0, // Space between bars
-	Width:                1000,
-	Height:               700,
-	LeftMargin:           80,
-	RightMargin:          50,
-	TopMargin:            30,
-	BottomMargin:         50,
+	VolumeSpacing:        2.0,
+
+	Width:        1000,
+	Height:       700,
+	LeftMargin:   80,
+	RightMargin:  50,
+	TopMargin:    30,
+	BottomMargin: 50,
 
 	MinLabelSpacing: 4, // 4x text height
 	MinPriceLabels:  5,

@@ -10,6 +10,7 @@ type Game struct {
 	chart       *Chart
 	axes        *Axes
 	interaction *Interaction
+	volume      *Volume
 }
 
 func main() {
@@ -22,6 +23,7 @@ func main() {
 		chart:       NewChart(config),
 		axes:        NewAxes(config),
 		interaction: NewInteraction(config),
+		volume:      NewVolume(config),
 	}
 
 	if err := ebiten.RunGame(game); err != nil {
@@ -39,9 +41,10 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	g.axes.Draw(screen, g.chart)
-	g.chart.Draw(screen)
-	g.interaction.Draw(screen, g.chart)
+	g.axes.Draw(screen, g.chart)        // Draw grid and axes first
+	g.volume.Draw(screen, g.chart)      // Then volume bars
+	g.chart.Draw(screen)                // Then OHLC price bars
+	g.interaction.Draw(screen, g.chart) // Finally crosshair
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {

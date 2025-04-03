@@ -49,101 +49,141 @@ func NewInteraction(config ChartConfig) *Interaction {
 		fontFace:     face,
 		labelHeight:  textHeight,
 		labelPadding: 5,
-		frameTimes:   make([]float64, 0, 300), // ~5 seconds at 60fps
+		frameTimes:   make([]float64, 0, 300),
 		lastUpdate:   time.Now(),
 		config:       config,
 	}
 }
 
 func (i *Interaction) Update(chart *Chart) {
-	// Tracking performance in
+	i.updateFrameTimes()
+	i.updateCrosshairPosition(chart)
+}
+
+func (i *Interaction) updateFrameTimes() {
 	now := time.Now()
-	frameTime := now.Sub(i.lastUpdate).Seconds() * 1000 // Convert to milliseconds
+	frameTime := now.Sub(i.lastUpdate).Seconds() * 1000
 	i.lastUpdate = now
 
-	// Maintain a 5-second window of frame times
 	i.frameTimes = append(i.frameTimes, frameTime)
-	if len(i.frameTimes) > 300 { // 60fps * 5s = 300
+	if len(i.frameTimes) > 300 {
 		i.frameTimes = i.frameTimes[1:]
 	}
 
-	// Calculate moving average
 	sum := 0.0
 	for _, ft := range i.frameTimes {
 		sum += ft
 	}
 	i.frameTimeMA = sum / float64(len(i.frameTimes))
+}
 
+func (i *Interaction) updateCrosshairPosition(chart *Chart) {
 	cx, cy := ebiten.CursorPosition()
-	i.crosshairX = float64(cx)
-	i.crosshairY = float64(cy)
-	i.showCrosshair = cx >= int(i.config.LeftMargin) && cx <= int(i.config.Width-i.config.RightMargin) &&
-		cy >= int(i.config.TopMargin) && cy <= int(i.config.Height-i.config.BottomMargin)
+	rawX, rawY := float64(cx), float64(cy)
+
+	i.crosshairX, i.crosshairY = i.getSnappedPosition(rawX, rawY, chart)
+
+	i.showCrosshair = cx >= int(chart.config.LeftMargin) &&
+		cx <= int(chart.config.Width-chart.config.RightMargin) &&
+		cy >= int(chart.config.TopMargin) &&
+		cy <= int(chart.config.Height-chart.config.BottomMargin)
 
 	if i.showCrosshair {
-		chartHeight := i.config.Height - i.config.TopMargin - i.config.BottomMargin
-		priceRange := chart.priceMax - chart.priceMin
-		i.mousePrice = chart.priceMax - ((i.crosshairY - i.config.TopMargin) / chartHeight * priceRange)
-
-		chartWidth := i.config.Width - i.config.LeftMargin - i.config.RightMargin
-		timeRange := float64(chart.timeEnd - chart.timeStart)
-		i.mouseTime = chart.timeStart + int64(((i.crosshairX-i.config.LeftMargin)/chartWidth)*timeRange)
+		i.updatePriceAndTimeValues(chart)
 	}
 }
 
+func (i *Interaction) getSnappedPosition(rawX, rawY float64, chart *Chart) (float64, float64) {
+	if rawX < chart.config.LeftMargin || rawX > chart.config.Width-chart.config.RightMargin ||
+		rawY < chart.config.TopMargin || rawY > chart.config.Height-chart.config.BottomMargin {
+		return rawX, rawY
+	}
+
+	totalBarSpace := chart.config.BarWidth + chart.config.BarSpacing
+	barCenters := make([]float64, len(chart.Data))
+	for idx := range chart.Data {
+		barCenters[idx] = chart.config.LeftMargin + (float64(idx)+0.5)*totalBarSpace*chart.Zoom + chart.OffsetX
+	}
+
+	snapThreshold := totalBarSpace * chart.Zoom * 0.5
+	nearestX := rawX
+	minDist := math.MaxFloat64
+
+	for _, center := range barCenters {
+		dist := math.Abs(rawX - center)
+		if dist < snapThreshold && dist < minDist {
+			minDist = dist
+			nearestX = center
+		}
+	}
+
+	if minDist < snapThreshold {
+		return nearestX, rawY
+	}
+	return rawX, rawY
+}
+
+func (i *Interaction) updatePriceAndTimeValues(chart *Chart) {
+	chartHeight := chart.config.Height - chart.config.TopMargin - chart.config.BottomMargin
+	priceRange := chart.priceMax - chart.priceMin
+	i.mousePrice = chart.priceMax - ((i.crosshairY - chart.config.TopMargin) / chartHeight * priceRange)
+
+	chartWidth := chart.config.Width - chart.config.LeftMargin - chart.config.RightMargin
+	timeRange := float64(chart.timeEnd - chart.timeStart)
+	i.mouseTime = chart.timeStart + int64(((i.crosshairX-chart.config.LeftMargin)/chartWidth)*timeRange)
+}
+
 func (i *Interaction) Draw(screen *ebiten.Image, chart *Chart) {
-	// Draw frame time display first (so it's underneath crosshair)
-	frametimeText := fmt.Sprintf("%.1f", i.frameTimeMA) // Just digits
+	i.drawFrameTimeDisplay(screen)
+	if !i.showCrosshair {
+		return
+	}
+	i.drawCrosshair(screen, chart)
+}
+
+func (i *Interaction) drawFrameTimeDisplay(screen *ebiten.Image) {
+	frametimeText := fmt.Sprintf("%.1f", i.frameTimeMA)
 	textWidth := font.MeasureString(i.fontFace, frametimeText).Ceil()
 	textHeight := i.labelHeight
 
-	// frame time display Background rectangle
 	padding := 4
 	rectWidth := textWidth + padding*2
 	rectHeight := textHeight + padding*2
-	rectX := float32(i.config.Width) - float32(rectWidth) - 2 // 2px from right edge
+	rectX := float32(i.config.Width) - float32(rectWidth) - 2
 	rectY := float32(2)
 
-	// Check if mouse is over the display
 	cx, cy := ebiten.CursorPosition()
 	showUnits := cx >= int(rectX) && cx <= int(rectX)+rectWidth &&
 		cy >= int(rectY) && cy <= int(rectY)+rectHeight
 
-	// Add units if hovering
 	if showUnits {
 		frametimeText += " ms"
 		textWidth = font.MeasureString(i.fontFace, frametimeText).Ceil()
 		rectWidth = textWidth + padding*2
-
-		// Recalculate X position to keep right-aligned
 		rectX = float32(i.config.Width) - float32(rectWidth) - 2
 	}
 
 	vector.DrawFilledRect(
 		screen,
-		rectX, // X position
-		rectY, // Y position
+		rectX,
+		rectY,
 		float32(rectWidth),
 		float32(rectHeight),
 		i.config.FrameTimeMABgColor,
 		false,
 	)
 
-	// frame time display Text
 	text.Draw(
 		screen,
 		frametimeText,
 		i.fontFace,
 		int(rectX)+padding,
-		5+padding+textHeight/2, // Vertically centered
+		5+padding+textHeight/2,
 		i.config.FrameTimeMATextColor,
 	)
+}
 
-	if !i.showCrosshair {
-		return
-	}
-
-	// Draw crosshair lines using config color
+func (i *Interaction) drawCrosshair(screen *ebiten.Image, chart *Chart) {
 	vector.StrokeLine(
 		screen,
 		float32(i.config.LeftMargin), float32(i.crosshairY),
@@ -162,7 +202,11 @@ func (i *Interaction) Draw(screen *ebiten.Image, chart *Chart) {
 		false,
 	)
 
-	// Draw price label
+	i.drawPriceLabel(screen)
+	i.drawTimeLabel(screen)
+}
+
+func (i *Interaction) drawPriceLabel(screen *ebiten.Image) {
 	priceText := fmt.Sprintf("%.2f", i.mousePrice)
 	priceTextWidth := font.MeasureString(i.fontFace, priceText).Ceil()
 	priceTextX := int(i.config.LeftMargin) - priceTextWidth - i.labelPadding*2
@@ -186,8 +230,9 @@ func (i *Interaction) Draw(screen *ebiten.Image, chart *Chart) {
 		priceTextY,
 		i.config.CrosshairTextColor,
 	)
+}
 
-	// Draw time label
+func (i *Interaction) drawTimeLabel(screen *ebiten.Image) {
 	timeText := time.Unix(i.mouseTime/1000, 0).Format("2006-01-02 15:04:05")
 	timeTextWidth := font.MeasureString(i.fontFace, timeText).Ceil()
 	timeTextX := int(math.Max(
