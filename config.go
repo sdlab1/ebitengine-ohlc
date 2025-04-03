@@ -19,9 +19,11 @@ type ChartConfig struct {
 	OpenColor  color.RGBA
 	CloseColor color.RGBA
 
-	CrosshairColor     color.RGBA
-	CrosshairTextColor color.RGBA
-	CrosshairBgColor   color.RGBA
+	CrosshairColor       color.RGBA
+	CrosshairTextColor   color.RGBA
+	CrosshairBgColor     color.RGBA
+	FrameTimeMABgColor   color.RGBA
+	FrameTimeMATextColor color.RGBA
 
 	// Dimensions
 	Width        float64
@@ -45,26 +47,28 @@ type ChartConfig struct {
 }
 
 var DefaultConfig = ChartConfig{
-	BackgroundColor:    color.RGBA{R: 10, G: 10, B: 10, A: 255},
-	AxisColor:          color.RGBA{R: 100, G: 100, B: 100, A: 255},
-	GridColor:          color.RGBA{R: 50, G: 50, B: 50, A: 255},    // Pure black
-	LabelColor:         color.RGBA{R: 255, G: 255, B: 255, A: 255}, // Pure white
-	PrimaryGridColor:   color.RGBA{R: 15, G: 15, B: 15, A: 255},    // Darker vertical grid
-	SecondaryGridColor: color.RGBA{R: 35, G: 35, B: 35, A: 255},    // Darker horizontal grid
-	BarColor:           color.RGBA{R: 255, G: 255, B: 255, A: 255},
-	OpenColor:          color.RGBA{R: 255, G: 255, B: 255, A: 255},
-	CloseColor:         color.RGBA{R: 255, G: 255, B: 255, A: 255},
-	CrosshairColor:     color.RGBA{R: 150, G: 150, B: 150, A: 100},
-	CrosshairTextColor: color.RGBA{R: 200, G: 200, B: 200, A: 255},
-	CrosshairBgColor:   color.RGBA{R: 40, G: 40, B: 60, A: 200},
-	BarWidth:           1.0,
-	BarSpacing:         5.0, // Space between bars
-	Width:              1000,
-	Height:             700,
-	LeftMargin:         80,
-	RightMargin:        50,
-	TopMargin:          30,
-	BottomMargin:       50,
+	BackgroundColor:      color.RGBA{R: 10, G: 10, B: 10, A: 255},
+	AxisColor:            color.RGBA{R: 100, G: 100, B: 100, A: 255},
+	GridColor:            color.RGBA{R: 50, G: 50, B: 50, A: 255},    // Pure black
+	LabelColor:           color.RGBA{R: 255, G: 255, B: 255, A: 255}, // Pure white
+	PrimaryGridColor:     color.RGBA{R: 15, G: 15, B: 15, A: 255},    // Darker vertical grid
+	SecondaryGridColor:   color.RGBA{R: 35, G: 35, B: 35, A: 255},    // Darker horizontal grid
+	BarColor:             color.RGBA{R: 255, G: 255, B: 255, A: 255},
+	OpenColor:            color.RGBA{R: 255, G: 255, B: 255, A: 255},
+	CloseColor:           color.RGBA{R: 255, G: 255, B: 255, A: 255},
+	CrosshairColor:       color.RGBA{R: 150, G: 150, B: 150, A: 255},
+	CrosshairTextColor:   color.RGBA{R: 200, G: 200, B: 200, A: 255},
+	CrosshairBgColor:     color.RGBA{R: 30, G: 30, B: 30, A: 255},
+	FrameTimeMATextColor: color.RGBA{R: 100, G: 100, B: 100, A: 255},
+	FrameTimeMABgColor:   color.RGBA{R: 20, G: 20, B: 20, A: 255},
+	BarWidth:             1.0,
+	BarSpacing:           5.0, // Space between bars
+	Width:                1000,
+	Height:               700,
+	LeftMargin:           80,
+	RightMargin:          50,
+	TopMargin:            30,
+	BottomMargin:         50,
 
 	MinLabelSpacing: 4, // 4x text height
 	MinPriceLabels:  5,

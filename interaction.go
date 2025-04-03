@@ -23,6 +23,9 @@ type Interaction struct {
 	labelHeight   int
 	labelPadding  int
 	config        ChartConfig
+	frameTimes    []float64
+	lastUpdate    time.Time
+	frameTimeMA   float64
 }
 
 func NewInteraction(config ChartConfig) *Interaction {
@@ -46,11 +49,31 @@ func NewInteraction(config ChartConfig) *Interaction {
 		fontFace:     face,
 		labelHeight:  textHeight,
 		labelPadding: 5,
+		frameTimes:   make([]float64, 0, 300), // ~5 seconds at 60fps
+		lastUpdate:   time.Now(),
 		config:       config,
 	}
 }
 
 func (i *Interaction) Update(chart *Chart) {
+	// Tracking performance in
+	now := time.Now()
+	frameTime := now.Sub(i.lastUpdate).Seconds() * 1000 // Convert to milliseconds
+	i.lastUpdate = now
+
+	// Maintain a 5-second window of frame times
+	i.frameTimes = append(i.frameTimes, frameTime)
+	if len(i.frameTimes) > 300 { // 60fps * 5s = 300
+		i.frameTimes = i.frameTimes[1:]
+	}
+
+	// Calculate moving average
+	sum := 0.0
+	for _, ft := range i.frameTimes {
+		sum += ft
+	}
+	i.frameTimeMA = sum / float64(len(i.frameTimes))
+
 	cx, cy := ebiten.CursorPosition()
 	i.crosshairX = float64(cx)
 	i.crosshairY = float64(cy)
@@ -69,6 +92,53 @@ func (i *Interaction) Update(chart *Chart) {
 }
 
 func (i *Interaction) Draw(screen *ebiten.Image, chart *Chart) {
+	// Draw frame time display first (so it's underneath crosshair)
+	frametimeText := fmt.Sprintf("%.1f", i.frameTimeMA) // Just digits
+	textWidth := font.MeasureString(i.fontFace, frametimeText).Ceil()
+	textHeight := i.labelHeight
+
+	// frame time display Background rectangle
+	padding := 4
+	rectWidth := textWidth + padding*2
+	rectHeight := textHeight + padding*2
+	rectX := float32(i.config.Width) - float32(rectWidth) - 2 // 2px from right edge
+	rectY := float32(2)
+
+	// Check if mouse is over the display
+	cx, cy := ebiten.CursorPosition()
+	showUnits := cx >= int(rectX) && cx <= int(rectX)+rectWidth &&
+		cy >= int(rectY) && cy <= int(rectY)+rectHeight
+
+	// Add units if hovering
+	if showUnits {
+		frametimeText += " ms"
+		textWidth = font.MeasureString(i.fontFace, frametimeText).Ceil()
+		rectWidth = textWidth + padding*2
+
+		// Recalculate X position to keep right-aligned
+		rectX = float32(i.config.Width) - float32(rectWidth) - 2
+	}
+
+	vector.DrawFilledRect(
+		screen,
+		rectX, // X position
+		rectY, // Y position
+		float32(rectWidth),
+		float32(rectHeight),
+		i.config.FrameTimeMABgColor,
+		false,
+	)
+
+	// frame time display Text
+	text.Draw(
+		screen,
+		frametimeText,
+		i.fontFace,
+		int(rectX)+padding,
+		5+padding+textHeight/2, // Vertically centered
+		i.config.FrameTimeMATextColor,
+	)
+
 	if !i.showCrosshair {
 		return
 	}
