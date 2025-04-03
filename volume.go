@@ -33,7 +33,8 @@ func (v *Volume) Draw(screen *ebiten.Image, chart *Chart) {
 
 	// Calculate bar dimensions to match OHLC bars
 	totalBarSpace := v.config.BarWidth + v.config.BarSpacing
-	volumeBarWidth := v.config.BarSpacing - v.config.VolumeSpacing
+	// Calculate zoom-adjusted bar width
+	volumeBarWidth := (chart.config.BarSpacing * chart.Zoom) - v.config.VolumeSpacing
 	if volumeBarWidth < 1 {
 		volumeBarWidth = 1 // Ensure minimum width
 	}
@@ -56,11 +57,11 @@ func (v *Volume) Draw(screen *ebiten.Image, chart *Chart) {
 		}
 
 		// Center the volume bar within the available spacing
-		barX := float32(x) + float32((v.config.BarSpacing-volumeBarWidth)/2)
+		//barX := float32(x) + float32((v.config.BarSpacing-volumeBarWidth)/2)
 
 		vector.DrawFilledRect(
 			screen,
-			barX,
+			float32(x)+float32((chart.config.BarSpacing*chart.Zoom-volumeBarWidth)/2), // Center volume bar
 			float32(y),
 			float32(volumeBarWidth),
 			float32(barHeight),

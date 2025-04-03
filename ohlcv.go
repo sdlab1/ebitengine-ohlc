@@ -168,3 +168,11 @@ func (c *Chart) Draw(screen *ebiten.Image) {
 		)
 	}
 }
+
+func (c *Chart) GetBarPosition(index int) (left, center, right float64) {
+	totalBarSpace := (c.config.BarWidth + c.config.BarSpacing) * c.Zoom
+	left = c.config.LeftMargin + (float64(index) * totalBarSpace) + c.OffsetX
+	right = left + c.config.BarWidth*c.Zoom
+	center = left + (c.config.BarWidth*c.Zoom)/2
+	return left, center, right
+}

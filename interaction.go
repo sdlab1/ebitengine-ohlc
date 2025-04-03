@@ -14,15 +14,16 @@ import (
 )
 
 type Interaction struct {
-	crosshairX    float64
-	crosshairY    float64
-	mousePrice    float64
-	mouseTime     int64
-	showCrosshair bool
+	crosshairX    float64 // Current x position (only changes when snapping)
+	crosshairY    float64 // Current y position (updates freely)
+	snappedBarIdx int     // Index of bar we're snapped to (-1 if not snapped)
 	fontFace      font.Face
 	labelHeight   int
 	labelPadding  int
 	config        ChartConfig
+	mousePrice    float64
+	mouseTime     int64
+	showCrosshair bool
 	frameTimes    []float64
 	lastUpdate    time.Time
 	frameTimeMA   float64
@@ -46,12 +47,13 @@ func NewInteraction(config ChartConfig) *Interaction {
 	metrics := face.Metrics()
 	textHeight := metrics.Ascent.Ceil() + metrics.Descent.Ceil()
 	return &Interaction{
-		fontFace:     face,
-		labelHeight:  textHeight,
-		labelPadding: 5,
-		frameTimes:   make([]float64, 0, 300),
-		lastUpdate:   time.Now(),
-		config:       config,
+		fontFace:      face,
+		labelHeight:   textHeight,
+		labelPadding:  5,
+		frameTimes:    make([]float64, 0, 300),
+		lastUpdate:    time.Now(),
+		config:        config,
+		snappedBarIdx: -1,
 	}
 }
 
@@ -79,48 +81,38 @@ func (i *Interaction) updateFrameTimes() {
 
 func (i *Interaction) updateCrosshairPosition(chart *Chart) {
 	cx, cy := ebiten.CursorPosition()
-	rawX, rawY := float64(cx), float64(cy)
+	mouseX, mouseY := float64(cx), float64(cy)
 
-	i.crosshairX, i.crosshairY = i.getSnappedPosition(rawX, rawY, chart)
+	// Update both positions freely
+	i.crosshairX = mouseX
+	i.crosshairY = mouseY
 
-	i.showCrosshair = cx >= int(chart.config.LeftMargin) &&
-		cx <= int(chart.config.Width-chart.config.RightMargin) &&
-		cy >= int(chart.config.TopMargin) &&
-		cy <= int(chart.config.Height-chart.config.BottomMargin)
+	// Calculate chart boundaries
+	chartLeft := chart.config.LeftMargin
+	chartRight := chart.config.Width - chart.config.RightMargin
+	chartTop := chart.config.TopMargin
+	chartBottom := chart.config.Height - chart.config.BottomMargin
+
+	// Check if cursor is within chart bounds
+	i.showCrosshair = mouseX >= chartLeft && mouseX <= chartRight &&
+		mouseY >= chartTop && mouseY <= chartBottom
 
 	if i.showCrosshair {
 		i.updatePriceAndTimeValues(chart)
 	}
 }
 
-func (i *Interaction) getSnappedPosition(rawX, rawY float64, chart *Chart) (float64, float64) {
-	if rawX < chart.config.LeftMargin || rawX > chart.config.Width-chart.config.RightMargin ||
-		rawY < chart.config.TopMargin || rawY > chart.config.Height-chart.config.BottomMargin {
-		return rawX, rawY
+func clamp(value, min, max int) int {
+	if min > max {
+		min, max = max, min
 	}
-
-	totalBarSpace := chart.config.BarWidth + chart.config.BarSpacing
-	barCenters := make([]float64, len(chart.Data))
-	for idx := range chart.Data {
-		barCenters[idx] = chart.config.LeftMargin + (float64(idx)+0.5)*totalBarSpace*chart.Zoom + chart.OffsetX
+	if value < min {
+		return min
 	}
-
-	snapThreshold := totalBarSpace * chart.Zoom * 0.5
-	nearestX := rawX
-	minDist := math.MaxFloat64
-
-	for _, center := range barCenters {
-		dist := math.Abs(rawX - center)
-		if dist < snapThreshold && dist < minDist {
-			minDist = dist
-			nearestX = center
-		}
+	if value > max {
+		return max
 	}
-
-	if minDist < snapThreshold {
-		return nearestX, rawY
-	}
-	return rawX, rawY
+	return value
 }
 
 func (i *Interaction) updatePriceAndTimeValues(chart *Chart) {
@@ -184,19 +176,25 @@ func (i *Interaction) drawFrameTimeDisplay(screen *ebiten.Image) {
 }
 
 func (i *Interaction) drawCrosshair(screen *ebiten.Image, chart *Chart) {
+	// Draw perfectly centered vertical line
 	vector.StrokeLine(
 		screen,
-		float32(i.config.LeftMargin), float32(i.crosshairY),
-		float32(i.config.Width-i.config.RightMargin), float32(i.crosshairY),
+		float32(i.crosshairX),
+		float32(i.config.TopMargin),
+		float32(i.crosshairX),
+		float32(i.config.Height-i.config.BottomMargin),
 		1,
 		i.config.CrosshairColor,
 		false,
 	)
 
+	// Draw horizontal line
 	vector.StrokeLine(
 		screen,
-		float32(i.crosshairX), float32(i.config.TopMargin),
-		float32(i.crosshairX), float32(i.config.Height-i.config.BottomMargin),
+		float32(i.config.LeftMargin),
+		float32(i.crosshairY),
+		float32(i.config.Width-i.config.RightMargin),
+		float32(i.crosshairY),
 		1,
 		i.config.CrosshairColor,
 		false,
