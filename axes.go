@@ -36,24 +36,51 @@ func (a *Axes) Update(chart *Chart) {
 }
 
 func (a *Axes) Draw(screen *ebiten.Image, chart *Chart) {
-	// Draw background
-	vector.DrawFilledRect(
-		screen,
-		0, 0,
-		float32(a.config.Width), float32(a.config.Height),
-		a.config.BackgroundColor,
-		false,
-	)
-
 	// Calculate chart dimensions
 	chartWidth := a.config.Width - a.config.LeftMargin - a.config.RightMargin
 	chartHeight := a.config.Height - a.config.TopMargin - a.config.BottomMargin
+	timeRange := chart.timeEnd - chart.timeStart
+	timeStep := timeRange / 12 // 12 vertical divisions
+
+	// Draw alternating vertical segments (dark/light)
+	for t := chart.timeStart; t < chart.timeEnd; t += timeStep {
+		x1 := a.config.LeftMargin + (float64(t-chart.timeStart) / float64(timeRange) * chartWidth)
+		x2 := a.config.LeftMargin + (float64(t-chart.timeStart+timeStep/2) / float64(timeRange) * chartWidth)
+
+		// First segment (dark)
+		vector.DrawFilledRect(
+			screen,
+			float32(x1),
+			float32(a.config.TopMargin),
+			float32(x2-x1),
+			float32(chartHeight),
+			a.config.PrimaryGridColor,
+			false,
+		)
+
+		// Second segment (light)
+		x3 := a.config.LeftMargin + (float64(t-chart.timeStart+timeStep) / float64(timeRange) * chartWidth)
+		if x3 > a.config.Width-a.config.RightMargin {
+			x3 = a.config.Width - a.config.RightMargin
+		}
+		vector.DrawFilledRect(
+			screen,
+			float32(x2),
+			float32(a.config.TopMargin),
+			float32(x3-x2),
+			float32(chartHeight),
+			a.config.SecondaryGridColor,
+			false,
+		)
+	}
 
 	// Draw Y axis
 	vector.StrokeLine(
 		screen,
-		float32(a.config.LeftMargin), float32(a.config.TopMargin),
-		float32(a.config.LeftMargin), float32(a.config.Height-a.config.BottomMargin),
+		float32(a.config.LeftMargin),
+		float32(a.config.TopMargin),
+		float32(a.config.LeftMargin),
+		float32(a.config.Height-a.config.BottomMargin),
 		a.config.AxisWidth,
 		a.config.AxisColor,
 		false,
@@ -76,10 +103,9 @@ func (a *Axes) Draw(screen *ebiten.Image, chart *Chart) {
 				float32(a.config.LeftMargin), float32(y),
 				float32(a.config.Width-a.config.RightMargin), float32(y),
 				0.5,
-				a.config.SecondaryGridColor,
+				a.config.GridColor,
 				false,
 			)
-
 			// Draw price label
 			priceStr := formatPriceLabel(price)
 			textWidth := font.MeasureString(a.fontFace, priceStr).Ceil()
@@ -95,19 +121,19 @@ func (a *Axes) Draw(screen *ebiten.Image, chart *Chart) {
 		}
 	}
 
-	// Draw X axis and vertical grid lines
+	// Draw X axis
 	vector.StrokeLine(
 		screen,
-		float32(a.config.LeftMargin), float32(a.config.Height-a.config.BottomMargin),
-		float32(a.config.Width-a.config.RightMargin), float32(a.config.Height-a.config.BottomMargin),
+		float32(a.config.LeftMargin),
+		float32(a.config.Height-a.config.BottomMargin),
+		float32(a.config.Width-a.config.RightMargin),
+		float32(a.config.Height-a.config.BottomMargin),
 		a.config.AxisWidth,
 		a.config.AxisColor,
 		false,
 	)
 
-	timeRange := chart.timeEnd - chart.timeStart
-	timeStep := timeRange / 12 // 12 vertical divisions
-
+	// Draw time labels (on top of the segments)
 	for t := chart.timeStart; t <= chart.timeEnd; t += timeStep {
 		x := a.config.LeftMargin + (float64(t-chart.timeStart) / float64(timeRange) * chartWidth)
 
@@ -117,7 +143,7 @@ func (a *Axes) Draw(screen *ebiten.Image, chart *Chart) {
 			float32(x), float32(a.config.TopMargin),
 			float32(x), float32(a.config.Height-a.config.BottomMargin),
 			1.2,
-			a.config.PrimaryGridColor,
+			a.config.GridColor,
 			false,
 		)
 

@@ -47,10 +47,10 @@ type ChartConfig struct {
 var DefaultConfig = ChartConfig{
 	BackgroundColor:    color.RGBA{R: 10, G: 10, B: 10, A: 255},
 	AxisColor:          color.RGBA{R: 100, G: 100, B: 100, A: 255},
-	GridColor:          color.RGBA{R: 0, G: 0, B: 0, A: 255},       // Pure black
+	GridColor:          color.RGBA{R: 50, G: 50, B: 50, A: 255},    // Pure black
 	LabelColor:         color.RGBA{R: 255, G: 255, B: 255, A: 255}, // Pure white
-	PrimaryGridColor:   color.RGBA{R: 30, G: 30, B: 50, A: 150},
-	SecondaryGridColor: color.RGBA{R: 50, G: 50, B: 70, A: 100},
+	PrimaryGridColor:   color.RGBA{R: 15, G: 15, B: 15, A: 255},    // Darker vertical grid
+	SecondaryGridColor: color.RGBA{R: 35, G: 35, B: 35, A: 255},    // Darker horizontal grid
 	BarColor:           color.RGBA{R: 255, G: 255, B: 255, A: 255},
 	OpenColor:          color.RGBA{R: 255, G: 255, B: 255, A: 255},
 	CloseColor:         color.RGBA{R: 255, G: 255, B: 255, A: 255},
