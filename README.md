@@ -1,3 +1,5 @@
+Wanted to do it (to be fast) in last years. Now my JS chart is a pretty mess and LLMs are good so i do it.
+
 Performance:
 Let me clarify the complete rendering picture and why this approach is still efficient in practice:
 
