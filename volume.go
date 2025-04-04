@@ -31,24 +31,29 @@ func (v *Volume) Draw(screen *ebiten.Image, chart *Chart) {
 		return
 	}
 
-	// Calculate bar dimensions to match OHLC bars
+	// Use the same bar dimensions as Chart.Draw
 	totalBarSpace := v.config.BarWidth + v.config.BarSpacing
-	// Calculate zoom-adjusted bar width
-	volumeBarWidth := (chart.config.BarSpacing * chart.Zoom) - v.config.VolumeSpacing
-	if volumeBarWidth < 1 {
-		volumeBarWidth = 1 // Ensure minimum width
+	barWidth := float32(v.config.BarWidth * chart.Zoom) // Match Chart's bar width
+	if barWidth < 1 {
+		barWidth = 1 // Minimum width
 	}
 
 	// Draw volume bars
 	for i, ohlcv := range chart.Data {
-		x := v.config.LeftMargin + (float64(i)*totalBarSpace*chart.Zoom + chart.OffsetX)
-		if x < v.config.LeftMargin || x > v.config.Width-v.config.RightMargin {
+		x := float32(v.config.LeftMargin + (float64(i)*totalBarSpace*chart.Zoom + chart.OffsetX))
+
+		// Center the bar exactly as in Chart.Draw
+		x -= barWidth / 2
+
+		// Skip bars outside the visible area, matching Chart.Draw
+		if x+barWidth < float32(v.config.LeftMargin) || x > float32(v.config.Width-v.config.RightMargin) {
 			continue
 		}
 
 		barHeight := (ohlcv.Volume / maxVolume) * volumeHeight
 		y := volumeTop + (volumeHeight - barHeight)
 
+		// Set color based on price movement
 		var barColor color.RGBA
 		if ohlcv.Close >= ohlcv.Open {
 			barColor = v.config.VolumeUpColor
@@ -56,14 +61,12 @@ func (v *Volume) Draw(screen *ebiten.Image, chart *Chart) {
 			barColor = v.config.VolumeDownColor
 		}
 
-		// Center the volume bar within the available spacing
-		//barX := float32(x) + float32((v.config.BarSpacing-volumeBarWidth)/2)
-
+		// Draw volume bar
 		vector.DrawFilledRect(
 			screen,
-			float32(x)+float32((chart.config.BarSpacing*chart.Zoom-volumeBarWidth)/2), // Center volume bar
+			x,
 			float32(y),
-			float32(volumeBarWidth),
+			barWidth,
 			float32(barHeight),
 			barColor,
 			false,

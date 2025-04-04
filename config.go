@@ -71,7 +71,7 @@ var DefaultConfig = ChartConfig{
 	BarSpacing:           5.0, // Space between bars
 	VolumeSpacing:        2.0,
 
-	Width:        1000,
+	Width:        1300,
 	Height:       700,
 	LeftMargin:   80,
 	RightMargin:  50,

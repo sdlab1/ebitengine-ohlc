@@ -26,12 +26,10 @@ type Game struct {
 func main() {
 	// Disable screen clearing optimization to ensure initial draw
 	ebiten.SetScreenClearedEveryFrame(false)
-
-	ebiten.SetWindowSize(1000, 700)
-	ebiten.SetWindowTitle("OHLC Chart Viewer")
-
 	config := DefaultConfig
 	chart := NewChart(config)
+	ebiten.SetWindowSize(int(config.Width), int(config.Height))
+	ebiten.SetWindowTitle("OHLC Chart Viewer")
 
 	db, err := NewDatabase()
 	if err != nil {
@@ -100,21 +98,20 @@ func (g *Game) Update() error {
 		}
 	}
 
-	// Check for changes in fetch status or error message
+	// Check fetch status or errors
 	g.db.fetchMutex.Lock()
 	currentFetchStatus := g.db.fetchStatus
 	currentErrorMsg := g.db.errorMsg
 	fetching := g.db.fetching
 	g.db.fetchMutex.Unlock()
 
-	// Force redraw if fetching is in progress or status/error changed
 	if fetching || currentFetchStatus != g.prevFetchStatus || currentErrorMsg != g.prevErrorMsg {
 		g.needsRedraw = true
 		g.prevFetchStatus = currentFetchStatus
 		g.prevErrorMsg = currentErrorMsg
 	}
 
-	// Auto-refresh data periodically
+	// Auto-refresh data every minute
 	now := time.Now()
 	if now.Sub(g.lastUpdate) > time.Minute {
 		data, err := g.timeframe.Get15MinBars()
@@ -132,6 +129,7 @@ func (g *Game) Update() error {
 		g.chart.UpdateData(data)
 		inputDetected = true
 		g.lastUpdate = now
+		g.needsRedraw = true // Force redraw to show latest bar on right
 	}
 
 	if err := g.chart.Update(); err != nil {
@@ -142,14 +140,6 @@ func (g *Game) Update() error {
 
 	if inputDetected || g.interaction.showCrosshair != g.interaction.prevShowCrosshair {
 		g.needsRedraw = true
-	}
-
-	// Force Ebiten to redraw if needed
-	if g.needsRedraw {
-		// Note: ebiten.RequestUpdate() is available in newer versions of Ebiten.
-		// If using an older version, this line can be removed, and the redraw will still work
-		// due to the simplified needsRedraw logic.
-		// ebiten.RequestUpdate()
 	}
 
 	return nil
@@ -172,5 +162,5 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return 1000, 700
+	return 1300, 700
 }
