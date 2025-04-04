@@ -30,7 +30,7 @@ func main() {
 	chart := NewChart(config)
 
 	// Fetch initial data - use UTC time explicitly
-	data, err := Fetch(1000, time.Now().UTC().UnixMilli()) // Get 1000 most recent 1-minute candles
+	data, err := Fetch(1000, time.Now().UTC().Unix()*1000) // Get 1000 most recent 1-minute candles
 	if err != nil {
 		log.Fatal("Failed to fetch data:", err)
 	}
@@ -120,6 +120,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if !g.needsRedraw {
 		return
 	}
+
+	// Clear the screen with the background color to remove artifacts
+	screen.Fill(g.chart.config.BackgroundColor)
 
 	// Render all components
 	g.axes.Draw(screen, g.chart)
