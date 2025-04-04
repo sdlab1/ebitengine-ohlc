@@ -19,8 +19,8 @@ func Fetch(num, totime int64) ([]OHLCV, error) {
 	req_url := url + "&limit=" + strconv.FormatInt(num, 10) + "&endTime=" + strconv.FormatInt(totime, 10)
 
 	// Log the request time in both UTC and local time for debugging
-	utcTime := time.Unix(totime, 0).UTC()
-	localTime := time.Unix(totime, 0)
+	utcTime := time.Unix(totime/1000, 0).UTC()
+	localTime := time.Unix(totime/1000, 0)
 	fmt.Printf("Fetching data - UTC: %s, Local: %s\n",
 		utcTime.Format("2006-01-02 15:04:05"),
 		localTime.Format("2006-01-02 15:04:05"))

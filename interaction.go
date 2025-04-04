@@ -14,19 +14,20 @@ import (
 )
 
 type Interaction struct {
-	crosshairX    float64 // Current x position (only changes when snapping)
-	crosshairY    float64 // Current y position (updates freely)
-	snappedBarIdx int     // Index of bar we're snapped to (-1 if not snapped)
-	fontFace      font.Face
-	labelHeight   int
-	labelPadding  int
-	config        ChartConfig
-	mousePrice    float64
-	mouseTime     int64
-	showCrosshair bool
-	frameTimes    []float64
-	lastUpdate    time.Time
-	frameTimeMA   float64
+	crosshairX        float64 // Current x position (only changes when snapping)
+	crosshairY        float64 // Current y position (updates freely)
+	snappedBarIdx     int     // Index of bar we're snapped to (-1 if not snapped)
+	fontFace          font.Face
+	labelHeight       int
+	labelPadding      int
+	config            ChartConfig
+	mousePrice        float64
+	mouseTime         int64
+	showCrosshair     bool
+	prevShowCrosshair bool // Track previous state of crosshair visibility
+	frameTimes        []float64
+	lastUpdate        time.Time
+	frameTimeMA       float64
 }
 
 func NewInteraction(config ChartConfig) *Interaction {
@@ -59,6 +60,11 @@ func NewInteraction(config ChartConfig) *Interaction {
 
 func (i *Interaction) Update(chart *Chart) {
 	i.updateFrameTimes()
+
+	// Store previous crosshair state
+	i.prevShowCrosshair = i.showCrosshair
+
+	// Update crosshair position
 	i.updateCrosshairPosition(chart)
 }
 
