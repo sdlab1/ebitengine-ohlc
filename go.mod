@@ -3,6 +3,7 @@ module github.com/sdlab1/n-ohlcv
 go 1.24.2
 
 require (
+	github.com/akrylysov/pogreb v0.10.2
 	github.com/hajimehoshi/ebiten/v2 v2.8.7
 	golang.org/x/image v0.25.0
 )

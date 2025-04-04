@@ -9,18 +9,22 @@ import (
 )
 
 type Game struct {
-	chart       *Chart
-	axes        *Axes
-	interaction *Interaction
-	volume      *Volume
-	lastUpdate  time.Time
-	needsRedraw bool // Flag to determine if rendering is needed
-	prevMouseX  int  // Previous mouse X position
-	prevMouseY  int  // Previous mouse Y position
+	chart           *Chart
+	axes            *Axes
+	interaction     *Interaction
+	volume          *Volume
+	db              *Database
+	timeframe       *Timeframe
+	lastUpdate      time.Time
+	needsRedraw     bool
+	prevMouseX      int
+	prevMouseY      int
+	prevFetchStatus string
+	prevErrorMsg    string
 }
 
 func main() {
-	// Disable screen clearing every frame to optimize GPU usage
+	// Disable screen clearing optimization to ensure initial draw
 	ebiten.SetScreenClearedEveryFrame(false)
 
 	ebiten.SetWindowSize(1000, 700)
@@ -29,22 +33,35 @@ func main() {
 	config := DefaultConfig
 	chart := NewChart(config)
 
-	// Fetch initial data - use UTC time explicitly
-	data, err := Fetch(1000, time.Now().UTC().Unix()*1000) // Get 1000 most recent 1-minute candles
+	db, err := NewDatabase()
 	if err != nil {
-		log.Fatal("Failed to fetch data:", err)
+		log.Fatal("Failed to initialize database:", err)
+	}
+	defer db.Close()
+
+	timeframe := NewTimeframe(db.db)
+
+	// Load initial data if available, otherwise chart will be empty until data is fetched
+	data, err := timeframe.Get15MinBars()
+	if err != nil {
+		log.Printf("No initial 15-min bars available: %v", err)
+		data = []OHLCV{}
 	}
 	chart.UpdateData(data)
 
 	game := &Game{
-		chart:       chart,
-		axes:        NewAxes(config),
-		interaction: NewInteraction(config),
-		volume:      NewVolume(config),
-		lastUpdate:  time.Now(),
-		needsRedraw: true, // Initial render is required
-		prevMouseX:  -1,   // Initialize to invalid position
-		prevMouseY:  -1,
+		chart:           chart,
+		axes:            NewAxes(config),
+		interaction:     NewInteraction(config),
+		volume:          NewVolume(config),
+		db:              db,
+		timeframe:       timeframe,
+		lastUpdate:      time.Now(),
+		needsRedraw:     true, // Ensure initial render
+		prevMouseX:      -1,
+		prevMouseY:      -1,
+		prevFetchStatus: "",
+		prevErrorMsg:    "",
 	}
 
 	if err := ebiten.RunGame(game); err != nil {
@@ -53,22 +70,19 @@ func main() {
 }
 
 func (g *Game) Update() error {
-	// Track if any input or data change requires a redraw
 	inputDetected := false
 
-	// Check keyboard input (e.g., arrow keys for panning)
+	// Check keyboard input
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) || inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
 		inputDetected = true
 	}
-
-	// Check mouse input (click, drag, or wheel)
+	// Check mouse input
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		inputDetected = true
 	}
 	if _, dy := ebiten.Wheel(); dy != 0 {
 		inputDetected = true
 	}
-
 	// Check mouse movement
 	cx, cy := ebiten.CursorPosition()
 	if cx != g.prevMouseX || cy != g.prevMouseY {
@@ -76,61 +90,84 @@ func (g *Game) Update() error {
 	}
 	g.prevMouseX, g.prevMouseY = cx, cy
 
-	// Check touch input (for Android) using AppendTouchIDs
+	// Check touch input
 	var touchIDs []ebiten.TouchID
-	touchIDs = ebiten.AppendTouchIDs(touchIDs) // Collect active touch IDs
+	touchIDs = ebiten.AppendTouchIDs(touchIDs)
 	for _, id := range touchIDs {
-		// Check if the touch was just pressed (duration of 1 frame)
 		if inpututil.TouchPressDuration(id) == 1 {
 			inputDetected = true
 			break
 		}
 	}
 
-	// Optionally: Auto-refresh data periodically (e.g., every minute)
+	// Check for changes in fetch status or error message
+	g.db.fetchMutex.Lock()
+	currentFetchStatus := g.db.fetchStatus
+	currentErrorMsg := g.db.errorMsg
+	fetching := g.db.fetching
+	g.db.fetchMutex.Unlock()
+
+	// Force redraw if fetching is in progress or status/error changed
+	if fetching || currentFetchStatus != g.prevFetchStatus || currentErrorMsg != g.prevErrorMsg {
+		g.needsRedraw = true
+		g.prevFetchStatus = currentFetchStatus
+		g.prevErrorMsg = currentErrorMsg
+	}
+
+	// Auto-refresh data periodically
 	now := time.Now()
 	if now.Sub(g.lastUpdate) > time.Minute {
-		utcNow := now.UTC()
-		endTime := utcNow.Unix() * 1000
-		data, err := Fetch(1000, endTime)
-		if err == nil {
-			g.chart.UpdateData(data)
-			inputDetected = true // Data change requires redraw
+		data, err := g.timeframe.Get15MinBars()
+		if err != nil {
+			log.Printf("Failed to refresh 15-min bars: %v", err)
+			if err := g.db.ensureLastData(); err != nil {
+				log.Printf("Failed to update database: %v", err)
+			}
+			data, err = g.timeframe.Get15MinBars()
+			if err != nil {
+				log.Printf("Retry failed: %v", err)
+				return nil
+			}
 		}
+		g.chart.UpdateData(data)
+		inputDetected = true
 		g.lastUpdate = now
 	}
 
-	// Update chart, axes, and interaction
 	if err := g.chart.Update(); err != nil {
 		return err
 	}
 	g.axes.Update(g.chart)
 	g.interaction.Update(g.chart)
 
-	// Set needsRedraw if there's input or crosshair visibility changes
 	if inputDetected || g.interaction.showCrosshair != g.interaction.prevShowCrosshair {
 		g.needsRedraw = true
+	}
+
+	// Force Ebiten to redraw if needed
+	if g.needsRedraw {
+		// Note: ebiten.RequestUpdate() is available in newer versions of Ebiten.
+		// If using an older version, this line can be removed, and the redraw will still work
+		// due to the simplified needsRedraw logic.
+		// ebiten.RequestUpdate()
 	}
 
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	// Skip rendering if no changes or input detected
-	if !g.needsRedraw {
-		return
-	}
+	// Remove the needsRedraw check to ensure drawing happens when requested
+	// Alternatively, keep it if using ebiten.RequestUpdate() in newer Ebiten versions
+	// if !g.needsRedraw {
+	// 	return
+	// }
 
-	// Clear the screen with the background color to remove artifacts
 	screen.Fill(g.chart.config.BackgroundColor)
-
-	// Render all components
 	g.axes.Draw(screen, g.chart)
 	g.volume.Draw(screen, g.chart)
 	g.chart.Draw(screen)
 	g.interaction.Draw(screen, g.chart)
-
-	// Reset the flag after rendering
+	g.db.DrawError(screen)
 	g.needsRedraw = false
 }
 
