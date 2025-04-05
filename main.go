@@ -33,6 +33,7 @@ func main() {
 	config := DefaultConfig
 	chart := NewChart(config)
 
+	// Initialize database
 	db, err := NewDatabase()
 	if err != nil {
 		log.Fatal("Failed to initialize database:", err)
@@ -41,7 +42,11 @@ func main() {
 
 	timeframe := NewTimeframe(db.db)
 
-	// Load initial data if available, otherwise chart will be empty until data is fetched
+	// Fetch fresh data before starting the game
+	log.Println("Fetching initial data...")
+	if err := db.ensureLastData(); err != nil {
+		log.Printf("Failed to fetch initial data: %v", err)
+	}
 	data, err := timeframe.Get15MinBars()
 	if err != nil {
 		log.Printf("No initial 15-min bars available: %v", err)
@@ -49,6 +54,7 @@ func main() {
 	}
 	chart.UpdateData(data)
 
+	// Create game instance with fresh data
 	game := &Game{
 		chart:           chart,
 		axes:            NewAxes(config),
@@ -148,8 +154,6 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	// Remove the needsRedraw check to ensure drawing happens when requested
-	// Alternatively, keep it if using ebiten.RequestUpdate() in newer Ebiten versions
 	if !g.needsRedraw {
 		return
 	}

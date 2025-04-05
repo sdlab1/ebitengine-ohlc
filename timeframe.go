@@ -53,17 +53,16 @@ func (tf *Timeframe) Get15MinBars() ([]OHLCV, error) {
 	var bars []OHLCV
 	currentBarEnd := minuteData[0].Time + 15*60*1000
 	var currentBar *OHLCV
-	foundIncompleteBar := false
 
 	for i := 0; i < len(minuteData); i++ {
 		// Check if we need to start a new bar
 		if currentBar == nil || minuteData[i].Time >= currentBarEnd {
-			if currentBar != nil && foundIncompleteBar {
-				// Add the incomplete bar only if it has at least 5 minutes of data
+			// Add the previous bar if it exists
+			if currentBar != nil {
 				bars = append(bars, *currentBar)
-				foundIncompleteBar = false
 			}
 
+			// Start a new bar
 			currentBar = &OHLCV{
 				Time:   minuteData[i].Time,
 				Open:   minuteData[i].Open,
@@ -85,11 +84,10 @@ func (tf *Timeframe) Get15MinBars() ([]OHLCV, error) {
 		}
 		currentBar.Close = minuteData[i].Close
 		currentBar.Volume += minuteData[i].Volume
-		foundIncompleteBar = true
 	}
 
-	// Add the last bar if meaningful
-	if currentBar != nil && (foundIncompleteBar || len(bars) == 0) {
+	// Add the last bar if it exists
+	if currentBar != nil {
 		bars = append(bars, *currentBar)
 	}
 

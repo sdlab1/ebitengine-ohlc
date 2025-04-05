@@ -82,28 +82,21 @@ func (d *Database) IsEmpty() (bool, error) {
 }
 
 func (d *Database) getLatestTimestamp() (int64, error) {
-	var latest int64
-	it := d.db.Items()
-
-	for {
-		key, _, err := it.Next()
-		if err == pogreb.ErrIterationDone {
-			break
-		}
-		if err != nil {
-			return 0, err
-		}
-
-		timestamp := bytesToInt64(key)
-		if timestamp > latest {
-			latest = timestamp
-		}
+	latestKey := []byte("latest_timestamp")
+	value, err := d.db.Get(latestKey)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get latest timestamp: %v", err)
 	}
-
-	if latest == 0 {
-		return 0, fmt.Errorf("no timestamps found in database")
+	if value == nil {
+		return 0, fmt.Errorf("no latest timestamp found in database")
 	}
-	return latest, nil
+	return bytesToInt64(value), nil
+}
+
+func (d *Database) setLatestTimestamp(timestamp int64) error {
+	latestKey := []byte("latest_timestamp")
+	value := int64ToBytes(timestamp)
+	return d.db.Put(latestKey, value)
 }
 
 func bytesToInt64(b []byte) int64 {
@@ -202,6 +195,7 @@ func (d *Database) ensureLastData() error {
 
 	// Store data in the database, excluding current incomplete minute
 	currentMinute := time.Now().UTC().Unix() / 60 * 60 * 1000
+	var latestTimestamp int64
 	for _, ohlcv := range allData {
 		if ohlcv.Time >= currentMinute {
 			continue // Skip current incomplete minute
@@ -214,6 +208,17 @@ func (d *Database) ensureLastData() error {
 		}
 		if err := d.db.Put(key, value); err != nil {
 			d.setError(fmt.Errorf("failed to store data: %v", err))
+			return err
+		}
+		if ohlcv.Time > latestTimestamp {
+			latestTimestamp = ohlcv.Time
+		}
+	}
+
+	// Update latest timestamp
+	if latestTimestamp != 0 {
+		if err := d.setLatestTimestamp(latestTimestamp); err != nil {
+			d.setError(fmt.Errorf("failed to update latest timestamp: %v", err))
 			return err
 		}
 	}
