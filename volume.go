@@ -15,15 +15,16 @@ func NewVolume(config ChartConfig) *Volume {
 	return &Volume{config: config}
 }
 
+// Draw renders volume bars synchronized with the chart's ts_from and ts_to
 func (v *Volume) Draw(screen *ebiten.Image, chart *Chart) {
 	// Calculate volume area dimensions (20% of chart height)
 	volumeHeight := (v.config.Height - v.config.TopMargin - v.config.BottomMargin) * 0.2
 	volumeTop := v.config.Height - v.config.BottomMargin - volumeHeight
 
-	// Find max volume for scaling
+	// Find max volume for scaling within the displayed range
 	maxVolume := 0.0
 	for _, d := range chart.Data {
-		if d.Volume > maxVolume {
+		if d.Time >= chart.ts_from && d.Volume > maxVolume {
 			maxVolume = d.Volume
 		}
 	}
@@ -33,17 +34,31 @@ func (v *Volume) Draw(screen *ebiten.Image, chart *Chart) {
 
 	// Calculate bar dimensions to match OHLC bars
 	totalBarSpace := v.config.BarWidth + v.config.BarSpacing
-	// Calculate zoom-adjusted bar width
 	volumeBarWidth := (chart.config.BarSpacing * chart.Zoom) - v.config.VolumeSpacing
 	if volumeBarWidth < 1 {
 		volumeBarWidth = 1 // Ensure minimum width
 	}
 
-	// Draw volume bars
-	for i, ohlcv := range chart.Data {
-		x := v.config.LeftMargin + (float64(i)*totalBarSpace*chart.Zoom + chart.OffsetX)
-		if x < v.config.LeftMargin || x > v.config.Width-v.config.RightMargin {
-			continue
+	// Find the index of the first bar with Time >= ts_from
+	startIndex := -1
+	for i, d := range chart.Data {
+		if d.Time >= chart.ts_from {
+			startIndex = i
+			break
+		}
+	}
+	if startIndex == -1 {
+		return // No bars to display
+	}
+
+	// Draw volume bars starting from startIndex until there's no more space
+	for i := startIndex; i < len(chart.Data); i++ {
+		ohlcv := chart.Data[i]
+		x := float32(v.config.LeftMargin + float64(i-startIndex)*totalBarSpace*chart.Zoom)
+
+		// Stop drawing if the bar exceeds the visible area
+		if x > float32(v.config.Width-v.config.RightMargin) {
+			break
 		}
 
 		barHeight := (ohlcv.Volume / maxVolume) * volumeHeight
@@ -56,12 +71,10 @@ func (v *Volume) Draw(screen *ebiten.Image, chart *Chart) {
 			barColor = v.config.VolumeDownColor
 		}
 
-		// Center the volume bar within the available spacing
-		//barX := float32(x) + float32((v.config.BarSpacing-volumeBarWidth)/2)
-
+		// Draw volume bar centered under the corresponding OHLC bar
 		vector.DrawFilledRect(
 			screen,
-			float32(x)+float32((chart.config.BarSpacing*chart.Zoom-volumeBarWidth)/2), // Center volume bar
+			x+float32((chart.config.BarSpacing*chart.Zoom-volumeBarWidth)/2),
 			float32(y),
 			float32(volumeBarWidth),
 			float32(barHeight),

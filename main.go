@@ -144,23 +144,15 @@ func (g *Game) Update() error {
 		g.needsRedraw = true
 	}
 
-	// Force Ebiten to redraw if needed
-	if g.needsRedraw {
-		// Note: ebiten.RequestUpdate() is available in newer versions of Ebiten.
-		// If using an older version, this line can be removed, and the redraw will still work
-		// due to the simplified needsRedraw logic.
-		// ebiten.RequestUpdate()
-	}
-
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	// Remove the needsRedraw check to ensure drawing happens when requested
 	// Alternatively, keep it if using ebiten.RequestUpdate() in newer Ebiten versions
-	// if !g.needsRedraw {
-	// 	return
-	// }
+	if !g.needsRedraw {
+		return
+	}
 
 	screen.Fill(g.chart.config.BackgroundColor)
 	g.axes.Draw(screen, g.chart)
